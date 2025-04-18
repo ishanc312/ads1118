@@ -1,2 +1,5 @@
 ../Core/Src/ads1118.c:11:6:initADS	1
-../Core/Src/ads1118.c:26:6:enableSingleshot	3
+../Core/Src/ads1118.c:35:6:resetConfig	3
+../Core/Src/ads1118.c:44:6:editConfig	3
+../Core/Src/ads1118.c:60:6:enableSingleshot	1
+../Core/Src/ads1118.c:65:6:enable_AIN0_SE	1

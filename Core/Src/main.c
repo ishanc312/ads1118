@@ -48,6 +48,7 @@
 ADS ADS1118;
 uint8_t config[2];
 uint8_t rxData[4];
+int status;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -94,7 +95,7 @@ int main(void)
   initADS(&ADS1118, &hspi1);
   /* USER CODE BEGIN 2 */
 
-  enableSingleshot(&ADS1118, rxData);
+  status = resetConfig(&ADS1118, rxData);
   config[0] = ADS1118.configReg.bytes[1];
   config[1] = ADS1118.configReg.bytes[0];
   /* USER CODE END 2 */

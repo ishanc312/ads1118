@@ -79,7 +79,9 @@ typedef struct ADS {
 } ADS;
 
 void initADS(ADS* adsInstance, SPI_HandleTypeDef* spiInstance);
+bool resetConfig(ADS* ads, uint8_t* rxData);
+bool editConfig(ADS* ads, uint8_t* rxData);
 bool enableSingleshot(ADS* adsInstance, uint8_t* rxData);
-//bool enable_AIN0_SE(ADS* adsInstance);
+bool enable_AIN0_SE(ADS* adsInstance, uint8_t* rxData);
 
 #endif /* SRC_ADS1118_H_ */
