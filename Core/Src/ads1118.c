@@ -9,7 +9,7 @@
 #include "ads1118.h"
 
 // Purely for initialization of the ADS struct, does not interface with Hardware
-void initADS(ADS* ads, SPI_HandleTypeDef* spiInstance) {
+void initADS_SW(ADS* ads, SPI_HandleTypeDef* spiInstance) {
 	ads->hspi = spiInstance;
 	ads->FSR = 2.048;
 	ads->SPS = 128;
@@ -28,6 +28,13 @@ void initADS(ADS* ads, SPI_HandleTypeDef* spiInstance) {
 }
 
 // ------------ ADS1118 HARDWARE INTERACTION ------------
+
+bool initADS_HW(ADS* ads, uint8_t* rxData) {
+	int rst_status = resetConfig(ads, rxData);
+	int mux_status = enable_AIN0_SE(ads, rxData);
+	return (rst_status & mux_status);
+}
+
 
 // Reading/Writing the CONFIG Register
 
@@ -48,7 +55,6 @@ bool resetConfig(ADS* ads, uint8_t* rxData) {
 }
 
 bool editConfig(ADS* ads, uint8_t* rxData) {
-	ads->configReg.bits.NOP = DATA_VALID;
 	uint8_t txData[4] = {ads->configReg.bytes[1], ads->configReg.bytes[0],
 				ads->configReg.bytes[1], ads->configReg.bytes[0]
 	};
@@ -56,41 +62,45 @@ bool editConfig(ADS* ads, uint8_t* rxData) {
 	HAL_SPI_TransmitReceive(ads->hspi, txData, rxData, 4, HAL_MAX_DELAY);
 	HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_SET);
 	if (rxData[2] == ads->configReg.bytes[1] && rxData[3] == ads->configReg.bytes[0]) {
-		ads->configReg.bits.NOP = DATA_INVALID;
 		return 1;
 	}
-	ads->configReg.bits.NOP = DATA_INVALID;
 	return 0;
 }
 
 bool enableSingleshot(ADS* ads, uint8_t* rxData) {
 	ads->configReg.bits.MODE = SS_EN;
+	ads->configReg.bits.NOP = DATA_VALID;
 	return editConfig(ads, rxData);
 }
 
 bool enable_AIN0_SE(ADS* ads, uint8_t* rxData) {
 	ads->configReg.bits.MUX = AINPN_0_G;
+	ads->configReg.bits.NOP = DATA_VALID;
 	return editConfig(ads, rxData);
 }
 
 // Reading the CONVERSION Register
 
-float singleshotRead(ADS* ads, uint8_t* rxData) {
+bool singleshotRead(ADS* ads, uint8_t* rxData, float* volt) {
+	if (enableSingleshot(ads, rxData) == 0) return 0;
+
 	ads->configReg.bits.SS = START;
-	int status = editConfig(ads, rxData);
+	ads->configReg.bits.NOP = DATA_VALID;
+	editConfig(ads, rxData);
 	ads->configReg.bits.SS = STOPPED;
-	if (!status) {
-		/* The ADS should say the txData and rxData are unequal, which makes sense
-		 * If you write to CONFIG with SS bit set to 1 (i.e. start SS Conversion)
-		 * The ADS should parse this and change SS bit back to 0; change is reflected in rxData
-		 * So, status is 0 because txData does NOT match rxData
+	if (rxData[2] == ads->configReg.bytes[1] && rxData[3] == ads->configReg.bytes[0]) {
+		/* If you write SS set to 1 and write to CONFIG, the rxData
+		 * contains the configuration you just sent with SS set to 0;
+		 * Hence, we need slightly different logic, although we still use editConfig()
 		 */
-		editConfig(ads, rxData);
-		// Temporary call; should probably change to something else for now
-		uint16_t ads_reading = ((uint16_t)rxData[0] << 8) | rxData[1];
-		// rxData[0] is DATA MSB, rxData[1] is DATA LSB
-		float voltage = parseVoltage(ads, ads_reading);
-		return voltage;
+		uint8_t txData[2] = {ads->configReg.bytes[1], ads->configReg.bytes[0]};
+		uint8_t adsData[2];
+		HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_RESET);
+		HAL_SPI_TransmitReceive(ads->hspi, txData, adsData, 2, HAL_MAX_DELAY);
+
+		uint16_t ads_reading = ((uint16_t) adsData[0] << 8) | adsData[1];
+		*volt = parseVoltage(ads, ads_reading);
+		return 1;
 	}
 	return 0;
 }

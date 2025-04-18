@@ -92,12 +92,13 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_SPI1_Init();
-  initADS(&ADS1118, &hspi1);
+
   /* USER CODE BEGIN 2 */
 
-  // status = singleshotRead(&ADS1118, rxData);
-  status = enable_AIN0_SE(&ADS1118, rxData);
-  voltage = singleshotRead(&ADS1118, rxData);
+  initADS_SW(&ADS1118, &hspi1);
+  status = initADS_HW(&ADS1118, rxData);
+  status = singleshotRead(&ADS1118, rxData, &voltage);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */

@@ -80,12 +80,15 @@ typedef struct ADS {
 	unsigned int SPS;
 } ADS;
 
-void initADS(ADS* adsInstance, SPI_HandleTypeDef* spiInstance);
+void initADS_SW(ADS* adsInstance, SPI_HandleTypeDef* spiInstance);
+bool initADS_HW(ADS* adsInstance, uint8_t* rxData);
+
 bool resetConfig(ADS* ads, uint8_t* rxData);
 bool editConfig(ADS* ads, uint8_t* rxData);
 bool enableSingleshot(ADS* adsInstance, uint8_t* rxData);
 bool enable_AIN0_SE(ADS* adsInstance, uint8_t* rxData);
-float singleshotRead(ADS* adsInstance, uint8_t* rxData);
+
+bool singleshotRead(ADS* adsInstance, uint8_t* rxData, float* voltage);
 float parseVoltage(ADS* adsInstance, uint16_t adsReading);
 
 #endif /* SRC_ADS1118_H_ */
