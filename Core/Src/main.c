@@ -46,8 +46,8 @@
 
 /* USER CODE BEGIN PV */
 ADS ADS1118;
-uint8_t config[2];
 uint8_t rxData[4];
+float voltage;
 int status;
 /* USER CODE END PV */
 
@@ -95,9 +95,9 @@ int main(void)
   initADS(&ADS1118, &hspi1);
   /* USER CODE BEGIN 2 */
 
-  status = resetConfig(&ADS1118, rxData);
-  config[0] = ADS1118.configReg.bytes[1];
-  config[1] = ADS1118.configReg.bytes[0];
+  // status = singleshotRead(&ADS1118, rxData);
+  status = enable_AIN0_SE(&ADS1118, rxData);
+  voltage = singleshotRead(&ADS1118, rxData);
   /* USER CODE END 2 */
 
   /* Infinite loop */

@@ -76,6 +76,8 @@ typedef enum NOP {
 typedef struct ADS {
 	SPI_HandleTypeDef *hspi;
 	ADS_Config_Bitfield configReg;
+	float FSR;
+	unsigned int SPS;
 } ADS;
 
 void initADS(ADS* adsInstance, SPI_HandleTypeDef* spiInstance);
@@ -83,5 +85,7 @@ bool resetConfig(ADS* ads, uint8_t* rxData);
 bool editConfig(ADS* ads, uint8_t* rxData);
 bool enableSingleshot(ADS* adsInstance, uint8_t* rxData);
 bool enable_AIN0_SE(ADS* adsInstance, uint8_t* rxData);
+float singleshotRead(ADS* adsInstance, uint8_t* rxData);
+float parseVoltage(ADS* adsInstance, uint16_t adsReading);
 
 #endif /* SRC_ADS1118_H_ */

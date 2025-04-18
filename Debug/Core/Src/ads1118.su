@@ -1,5 +1,7 @@
-../Core/Src/ads1118.c:11:6:initADS	16	static
-../Core/Src/ads1118.c:35:6:resetConfig	32	static
-../Core/Src/ads1118.c:44:6:editConfig	32	static
-../Core/Src/ads1118.c:60:6:enableSingleshot	16	static
-../Core/Src/ads1118.c:65:6:enable_AIN0_SE	16	static
+../Core/Src/ads1118.c:12:6:initADS	16	static
+../Core/Src/ads1118.c:34:6:resetConfig	32	static
+../Core/Src/ads1118.c:50:6:editConfig	32	static
+../Core/Src/ads1118.c:66:6:enableSingleshot	16	static
+../Core/Src/ads1118.c:71:6:enable_AIN0_SE	16	static
+../Core/Src/ads1118.c:78:7:singleshotRead	32	static
+../Core/Src/ads1118.c:98:7:parseVoltage	24	static
