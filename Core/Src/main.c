@@ -97,7 +97,7 @@ int main(void)
 
   initADS_SW(&ADS1118, &hspi1);
   status = initADS_HW(&ADS1118, rxData);
-  status = singleshotRead(&ADS1118, rxData, &voltage);
+  status = enableContinuousConversion(&ADS1118, rxData);
 
   /* USER CODE END 2 */
 
@@ -106,7 +106,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	  continuousRead(&ADS1118, rxData, &voltage);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */

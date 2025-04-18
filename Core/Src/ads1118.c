@@ -8,7 +8,7 @@
 
 #include "ads1118.h"
 
-// Purely for initialization of the ADS struct, does not interface with Hardware
+// ------------ ADS1118 SOFTWARE INTERACTION ---------------
 void initADS_SW(ADS* ads, SPI_HandleTypeDef* spiInstance) {
 	ads->hspi = spiInstance;
 	ads->FSR = 2.048;
@@ -30,11 +30,10 @@ void initADS_SW(ADS* ads, SPI_HandleTypeDef* spiInstance) {
 // ------------ ADS1118 HARDWARE INTERACTION ------------
 
 bool initADS_HW(ADS* ads, uint8_t* rxData) {
-	int rst_status = resetConfig(ads, rxData);
-	int mux_status = enable_AIN0_SE(ads, rxData);
+	bool rst_status = resetConfig(ads, rxData);
+	bool mux_status = enable_AIN0_SE(ads, rxData);
 	return (rst_status & mux_status);
 }
-
 
 // Reading/Writing the CONFIG Register
 
@@ -67,22 +66,41 @@ bool editConfig(ADS* ads, uint8_t* rxData) {
 	return 0;
 }
 
-bool enableSingleshot(ADS* ads, uint8_t* rxData) {
-	ads->configReg.bits.MODE = SS_EN;
-	ads->configReg.bits.NOP = DATA_VALID;
-	return editConfig(ads, rxData);
-}
-
 bool enable_AIN0_SE(ADS* ads, uint8_t* rxData) {
 	ads->configReg.bits.MUX = AINPN_0_G;
 	ads->configReg.bits.NOP = DATA_VALID;
 	return editConfig(ads, rxData);
 }
 
+bool enableContinuousConversion(ADS* ads, uint8_t* rxData) {
+	ads->configReg.bits.MODE = CC_EN;
+	ads->configReg.bits.NOP = DATA_VALID;
+	return editConfig(ads, rxData);
+}
+
+bool enableSingleshot(ADS* ads, uint8_t* rxData) {
+	ads->configReg.bits.MODE = SS_EN;
+	ads->configReg.bits.NOP = DATA_VALID;
+	return editConfig(ads, rxData);
+}
+
 // Reading the CONVERSION Register
+// Add checks for each read type? i.e. check corresponding MODE is set
+void continuousRead(ADS* ads, uint8_t* rxData, float* volt) {
+	uint8_t txData[2] = {ads->configReg.bytes[1], ads->configReg.bytes[0]};
+	uint8_t adsData[2];
+	HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_RESET);
+	HAL_SPI_TransmitReceive(ads->hspi, txData, adsData, 2, HAL_MAX_DELAY);
+	HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_SET);
+	uint16_t ads_reading = ((uint16_t) adsData[0] << 8) | adsData[1];
+	*volt = parseVoltage(ads, ads_reading);
+}
 
 bool singleshotRead(ADS* ads, uint8_t* rxData, float* volt) {
 	if (enableSingleshot(ads, rxData) == 0) return 0;
+	// Verify if MODE Bits are set to SS_EN
+	// Not to be confused with SS Bits we enable below
+	// Should refactor so we do not call this over and over when unnecessary
 
 	ads->configReg.bits.SS = START;
 	ads->configReg.bits.NOP = DATA_VALID;
@@ -97,7 +115,7 @@ bool singleshotRead(ADS* ads, uint8_t* rxData, float* volt) {
 		uint8_t adsData[2];
 		HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_RESET);
 		HAL_SPI_TransmitReceive(ads->hspi, txData, adsData, 2, HAL_MAX_DELAY);
-
+		HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_SET);
 		uint16_t ads_reading = ((uint16_t) adsData[0] << 8) | adsData[1];
 		*volt = parseVoltage(ads, ads_reading);
 		return 1;

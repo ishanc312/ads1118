@@ -85,9 +85,11 @@ bool initADS_HW(ADS* adsInstance, uint8_t* rxData);
 
 bool resetConfig(ADS* ads, uint8_t* rxData);
 bool editConfig(ADS* ads, uint8_t* rxData);
-bool enableSingleshot(ADS* adsInstance, uint8_t* rxData);
 bool enable_AIN0_SE(ADS* adsInstance, uint8_t* rxData);
+bool enableSingleshot(ADS* adsInstance, uint8_t* rxData);
+bool enableContinuousConversion(ADS* adsInstance, uint8_t* rxData);
 
+void continuousRead(ADS* adsInstance, uint8_t* rxData, float* voltage);
 bool singleshotRead(ADS* adsInstance, uint8_t* rxData, float* voltage);
 float parseVoltage(ADS* adsInstance, uint16_t adsReading);
 
