@@ -1,0 +1,2 @@
+../Core/Src/ads1118.c:11:6:initADS	1
+../Core/Src/ads1118.c:26:6:enableSingleshot	3
