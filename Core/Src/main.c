@@ -92,8 +92,11 @@ int main(void)
   MX_SPI1_Init();
 
   /* USER CODE BEGIN 2 */
+
   initADS_SW(&ADS1118, &hspi1, GPIOA, GPIO_PIN_4);
   status = resetConfig(&ADS1118);
+  status = enableContinuousConversion(&ADS1118);
+  status = enableTempSensor(&ADS1118);
 
   /* USER CODE END 2 */
 
@@ -101,8 +104,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
 
+    /* USER CODE END WHILE */
+	  status = continuousRead(&ADS1118);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */

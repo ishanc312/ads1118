@@ -67,20 +67,14 @@ bool enableContinuousConversion(ADS* ads) {
 	return editConfig(ads, prevConfig);
 }
 
-// We read data by transmitting the config & receiving at the same time
-bool continuousRead(ADS* ads) {
-	if (ads->config.bits.MODE == 0) {
-		uint8_t txData[2] = {ads->config.bytes[1], ads->config.bytes[0]};
-		HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_RESET);
-		HAL_SPI_TransmitReceive(ads->hspi, txData, ads->rxADS, 2, HAL_MAX_DELAY);
-		HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_SET);
-		uint16_t ads_reading = ((uint16_t) ads->rxADS[0] << 8) | ads->rxADS[1];
-		ads->voltage = parseVoltage(ads, ads_reading);
-		return 1;
-	}
-	return 0;
+bool enableTempSensor(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.bits.TS_MODE = TEMP_MODE;
+	ads->config.bits.NOP = DATA_VALID;
+	return editConfig(ads, prevConfig);
 }
 
+// We read data by transmitting the config & receiving at the same time!
 bool singleshotRead(ADS* ads) {
 	// Check if we are in Singleshot Mode first
 	if (ads->config.bits.MODE == 1) {
@@ -102,14 +96,37 @@ bool singleshotRead(ADS* ads) {
 			HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_RESET);
 			HAL_SPI_TransmitReceive(ads->hspi, txADS, ads->rxADS, 2, HAL_MAX_DELAY);
 			HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_SET);
+
 			uint16_t ads_reading = ((uint16_t) ads->rxADS[0] << 8) | ads->rxADS[1];
-			ads->voltage = parseVoltage(ads, ads_reading);
+			if (ads->config.bits.TS_MODE == TEMP_MODE) {
+				ads->temp = parseTemp(ads_reading);
+			} else {
+				ads->voltage = parseVoltage(ads, ads_reading);
+			}
 			return 1;
 		} else {
 			// Writing SS Bit to 1 failed; go back to prevConfig
 			ads->config.word = prevConfig;
 			return 0;
 		}
+	}
+	return 0;
+}
+
+bool continuousRead(ADS* ads) {
+	// Check if we are in Continuous Conversion Mode first
+	if (ads->config.bits.MODE == 0) {
+		uint8_t txData[2] = {ads->config.bytes[1], ads->config.bytes[0]};
+		HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_RESET);
+		HAL_SPI_TransmitReceive(ads->hspi, txData, ads->rxADS, 2, HAL_MAX_DELAY);
+		HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_SET);
+		uint16_t ads_reading = ((uint16_t) ads->rxADS[0] << 8) | ads->rxADS[1];
+		if (ads->config.bits.TS_MODE == TEMP_MODE) {
+			ads->temp = parseTemp(ads_reading);
+		} else {
+			ads->voltage = parseVoltage(ads, ads_reading);
+		}
+		return 1;
 	}
 	return 0;
 }
@@ -169,8 +186,15 @@ bool enableAINPN_3_G(ADS* ads) {
 	return editConfig(ads, prevConfig);
 }
 
-
 float parseVoltage(ADS* ads, uint16_t ads_reading) {
 	return ((ads_reading/32768.0)*(ads->FSR));
+}
+
+float parseTemp(uint16_t ads_reading) {
+	int16_t signed_temp = ads_reading >> 2;
+	if (signed_temp & 0x2000) { // If sign bit (bit 13) is set
+		signed_temp |= 0xC000;  // Set upper bits to preserve sign in 16-bit
+	}
+	return (signed_temp * 0.03125);
 }
 

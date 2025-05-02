@@ -7,11 +7,10 @@
 
 #define CONFIG_BIT_RESV 1
 
-// Simple ADS Struct
+// ADS Struct
 typedef struct ADS {
 	SPI_HandleTypeDef *hspi;
 	float FSR;
-	float voltage;
 	unsigned int SPS;
 	GPIO_TypeDef* GPIO_PORT;
 	uint16_t GPIO_PIN;
@@ -19,7 +18,8 @@ typedef struct ADS {
 	uint8_t rxADS[2];
 	uint8_t rxConfig[4];
 
-	// uint8_t rxADS[2];
+	float voltage;
+	float temp;
 
 	union {
 		uint16_t word;
@@ -90,6 +90,7 @@ bool resetConfig(ADS* ads);
 bool editConfig(ADS* ads, uint16_t prevConfig);
 bool enableSingleshot(ADS* ads);
 bool enableContinuousConversion(ADS* ads);
+bool enableTempSensor(ADS* ads);
 
 bool continuousRead(ADS* ads);
 bool singleshotRead(ADS* ads);
@@ -104,5 +105,6 @@ bool enableAINPN_2_G(ADS* ads);
 bool enableAINPN_3_G(ADS* ads);
 
 float parseVoltage(ADS* adsInstance, uint16_t adsReading);
+float parseTemp(uint16_t adsReading);
 
 #endif /* SRC_ADS1118_H_ */
