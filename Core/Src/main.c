@@ -46,8 +46,6 @@
 
 /* USER CODE BEGIN PV */
 ADS ADS1118;
-uint8_t rxData[4];
-float voltage;
 int status;
 /* USER CODE END PV */
 
@@ -94,10 +92,8 @@ int main(void)
   MX_SPI1_Init();
 
   /* USER CODE BEGIN 2 */
-
-  initADS_SW(&ADS1118, &hspi1);
-  status = initADS_HW(&ADS1118, rxData);
-  status = enableContinuousConversion(&ADS1118, rxData);
+  initADS_SW(&ADS1118, &hspi1, GPIOA, GPIO_PIN_4);
+  status = resetConfig(&ADS1118);
 
   /* USER CODE END 2 */
 
@@ -106,7 +102,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  continuousRead(&ADS1118, rxData, &voltage);
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */

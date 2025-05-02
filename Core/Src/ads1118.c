@@ -8,120 +8,167 @@
 
 #include "ads1118.h"
 
-// ------------ ADS1118 SOFTWARE INTERACTION ---------------
-void initADS_SW(ADS* ads, SPI_HandleTypeDef* spiInstance) {
+// Initialize ADS Struct
+void initADS_SW(ADS* ads, SPI_HandleTypeDef* spiInstance, GPIO_TypeDef* GPIO_PORT, uint16_t GPIO_PIN) {
+	// Important Parameters
 	ads->hspi = spiInstance;
-	ads->FSR = 2.048;
-	ads->SPS = 128;
+	ads->FSR = 2.048; // Full Scale Range
+	ads->SPS = 128; // Data Rate, i.e. Samples Per Second
+	ads->GPIO_PORT = GPIO_PORT;
+	ads->GPIO_PIN = GPIO_PIN;
 
-	// Default Config According to Datasheet
-	ads->configReg.bits.RESV = CONFIG_BIT_RESV; // Low bit (0)
-	ads->configReg.bits.NOP = DATA_VALID;
-	ads->configReg.bits.PULL_UP_EN = ENABLED;
-	ads->configReg.bits.TS_MODE = ADC_MODE;
-	ads->configReg.bits.DR = SPS_128;
-	ads->configReg.bits.MODE = SS_EN;
-	ads->configReg.bits.PGA = FSR_2048;
-	ads->configReg.bits.MUX = AINPN_0_1;
-	ads->configReg.bits.SS = STOPPED; // High bit (15)
-
+	// Default Config according to Datasheet
+	ads->config.bits.RESV = CONFIG_BIT_RESV;
+	ads->config.bits.NOP = DATA_VALID;
+	ads->config.bits.PULL_UP_EN = ENABLED;
+	ads->config.bits.TS_MODE = ADC_MODE;
+	ads->config.bits.DR = SPS_128;
+	ads->config.bits.MODE = SS_EN;
+	ads->config.bits.PGA = FSR_2048;
+	ads->config.bits.MUX = AINPN_0_1;
+	ads->config.bits.SS = STOPPED;
+	// This is equivalent to 0x058B if you write it out
 }
 
-// ------------ ADS1118 HARDWARE INTERACTION ------------
-
-bool initADS_HW(ADS* ads, uint8_t* rxData) {
-	bool rst_status = resetConfig(ads, rxData);
-	bool mux_status = enable_AIN0_SE(ads, rxData);
-	return (rst_status & mux_status);
-}
-
-// Reading/Writing the CONFIG Register
-
-bool resetConfig(ADS* ads, uint8_t* rxData) {
-	uint8_t txData[4] = {0x05, 0x8B, 0x05, 0x8B};
-	HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_RESET);
-	HAL_SPI_TransmitReceive(ads->hspi, txData, rxData, 4, HAL_MAX_DELAY);
-	HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_SET);
-	if (txData[0] == rxData[2] && txData[1] == rxData[3]) return 1;
+bool editConfig(ADS* ads, uint16_t prevConfig) {
+	uint8_t txData[4] = {ads->config.bytes[1], ads->config.bytes[0],
+			ads->config.bytes[1], ads->config.bytes[0]};
+	HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_RESET);
+	HAL_SPI_TransmitReceive(ads->hspi, txData, ads->rxConfig, 4, HAL_MAX_DELAY);
+	HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_SET);
+	if (txData[0] == ads->rxConfig[2] && txData[1] == ads->rxConfig[3]) {
+		return 1;
+	}
+	// Transmission failed; revert back to previous known configuration state on SW Side
+	ads->config.word = prevConfig;
 	return 0;
-
-	// 0x058B is the "RESET" Byte
-	// 0000010110001011 (bit 15 to bit 0)
-	// Based on our initialization, we get 0000010110001011, as desired!
-	// uint8_t bytes[2] correctly shows bytes[0], i.e. bits 0-7 being 10001011
-	// and bytes[1], i.e. bits 8-15 being 00000101
-	// Hence why we sent bytes[1] first and then bytes[0] (we send MSB first!)
 }
 
-bool editConfig(ADS* ads, uint8_t* rxData) {
-	uint8_t txData[4] = {ads->configReg.bytes[1], ads->configReg.bytes[0],
-				ads->configReg.bytes[1], ads->configReg.bytes[0]
-	};
-	HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_RESET);
-	HAL_SPI_TransmitReceive(ads->hspi, txData, rxData, 4, HAL_MAX_DELAY);
-	HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_SET);
-	if (rxData[2] == ads->configReg.bytes[1] && rxData[3] == ads->configReg.bytes[0]) {
+bool resetConfig(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.word = 0x058B;
+	// 0x058B is the "RESET" Command
+	// 0000010110001011 (Bit 15 to Bit 0)
+	// Which matches with our ADS.config.bits in initSW() command
+	return editConfig(ads, prevConfig);
+}
+
+bool enableSingleshot(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.bits.MODE = SS_EN;
+	ads->config.bits.NOP = DATA_VALID;
+	return editConfig(ads, prevConfig);
+}
+
+bool enableContinuousConversion(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.bits.MODE = CC_EN;
+	ads->config.bits.NOP = DATA_VALID;
+	return editConfig(ads, prevConfig);
+}
+
+// We read data by transmitting the config & receiving at the same time
+bool continuousRead(ADS* ads) {
+	if (ads->config.bits.MODE == 0) {
+		uint8_t txData[2] = {ads->config.bytes[1], ads->config.bytes[0]};
+		HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_RESET);
+		HAL_SPI_TransmitReceive(ads->hspi, txData, ads->rxADS, 2, HAL_MAX_DELAY);
+		HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_SET);
+		uint16_t ads_reading = ((uint16_t) ads->rxADS[0] << 8) | ads->rxADS[1];
+		ads->voltage = parseVoltage(ads, ads_reading);
 		return 1;
 	}
 	return 0;
 }
 
-bool enable_AIN0_SE(ADS* ads, uint8_t* rxData) {
-	ads->configReg.bits.MUX = AINPN_0_G;
-	ads->configReg.bits.NOP = DATA_VALID;
-	return editConfig(ads, rxData);
-}
-
-bool enableContinuousConversion(ADS* ads, uint8_t* rxData) {
-	ads->configReg.bits.MODE = CC_EN;
-	ads->configReg.bits.NOP = DATA_VALID;
-	return editConfig(ads, rxData);
-}
-
-bool enableSingleshot(ADS* ads, uint8_t* rxData) {
-	ads->configReg.bits.MODE = SS_EN;
-	ads->configReg.bits.NOP = DATA_VALID;
-	return editConfig(ads, rxData);
-}
-
-// Reading the CONVERSION Register
-// Add checks for each read type? i.e. check corresponding MODE is set
-void continuousRead(ADS* ads, uint8_t* rxData, float* volt) {
-	uint8_t txData[2] = {ads->configReg.bytes[1], ads->configReg.bytes[0]};
-	uint8_t adsData[2];
-	HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_RESET);
-	HAL_SPI_TransmitReceive(ads->hspi, txData, adsData, 2, HAL_MAX_DELAY);
-	HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_SET);
-	uint16_t ads_reading = ((uint16_t) adsData[0] << 8) | adsData[1];
-	*volt = parseVoltage(ads, ads_reading);
-}
-
-bool singleshotRead(ADS* ads, uint8_t* rxData, float* volt) {
-	if (enableSingleshot(ads, rxData) == 0) return 0;
-	// Verify if MODE Bits are set to SS_EN
-	// Not to be confused with SS Bits we enable below
-	// Should refactor so we do not call this over and over when unnecessary
-
-	ads->configReg.bits.SS = START;
-	ads->configReg.bits.NOP = DATA_VALID;
-	editConfig(ads, rxData);
-	ads->configReg.bits.SS = STOPPED;
-	if (rxData[2] == ads->configReg.bytes[1] && rxData[3] == ads->configReg.bytes[0]) {
-		/* If you write SS set to 1 and write to CONFIG, the rxData
-		 * contains the configuration you just sent with SS set to 0;
-		 * Hence, we need slightly different logic, although we still use editConfig()
-		 */
-		uint8_t txData[2] = {ads->configReg.bytes[1], ads->configReg.bytes[0]};
-		uint8_t adsData[2];
-		HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_RESET);
-		HAL_SPI_TransmitReceive(ads->hspi, txData, adsData, 2, HAL_MAX_DELAY);
-		HAL_GPIO_WritePin(ADS_EN_PORT, ADS_EN_PIN, GPIO_PIN_SET);
-		uint16_t ads_reading = ((uint16_t) adsData[0] << 8) | adsData[1];
-		*volt = parseVoltage(ads, ads_reading);
-		return 1;
+bool singleshotRead(ADS* ads) {
+	// Check if we are in Singleshot Mode first
+	if (ads->config.bits.MODE == 1) {
+		// When we write SS Bit to 1, the ADS responds by powering on and setting SS back to 0
+		// It then performs the Singleshot Conversion and stores it in its buffer
+		uint16_t prevConfig = ads->config.word;
+		ads->config.bits.SS = START;
+		ads->config.bits.NOP = DATA_VALID;
+		uint8_t txData[2] = {ads->config.bytes[1], ads->config.bytes[0]};
+		uint8_t rxData[2];
+		HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_RESET);
+		HAL_SPI_Transmit(ads->hspi, txData, 2, HAL_MAX_DELAY);
+		HAL_SPI_Receive(ads->hspi, rxData, 2, HAL_MAX_DELAY);
+		HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_SET);
+		ads->config.bits.SS = STOPPED;
+		if (rxData[0] == ads->config.bytes[1] && rxData[1] == ads->config.bytes[0]) {
+			// If the ADS wrote SS back to 0 successfully, we now read its conversion
+			uint8_t txADS[2] = {ads->config.bytes[1], ads->config.bytes[0]};
+			HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_RESET);
+			HAL_SPI_TransmitReceive(ads->hspi, txADS, ads->rxADS, 2, HAL_MAX_DELAY);
+			HAL_GPIO_WritePin(ads->GPIO_PORT, ads->GPIO_PIN, GPIO_PIN_SET);
+			uint16_t ads_reading = ((uint16_t) ads->rxADS[0] << 8) | ads->rxADS[1];
+			ads->voltage = parseVoltage(ads, ads_reading);
+			return 1;
+		} else {
+			// Writing SS Bit to 1 failed; go back to prevConfig
+			ads->config.word = prevConfig;
+			return 0;
+		}
 	}
 	return 0;
 }
+
+bool enableAINPN_0_1(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.bits.MUX = AINPN_0_1;
+	ads->config.bits.NOP = DATA_VALID;
+	return editConfig(ads, prevConfig);
+}
+
+bool enableAINPN_0_3(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.bits.MUX = AINPN_0_3;
+	ads->config.bits.NOP = DATA_VALID;
+	return editConfig(ads, prevConfig);
+}
+
+bool enableAINPN_1_3(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.bits.MUX = AINPN_1_3;
+	ads->config.bits.NOP = DATA_VALID;
+	return editConfig(ads, prevConfig);
+}
+
+bool enableAINPN_2_3(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.bits.MUX = AINPN_2_3;
+	ads->config.bits.NOP = DATA_VALID;
+	return editConfig(ads, prevConfig);
+}
+
+bool enableAINPN_0_G(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.bits.MUX = AINPN_0_G;
+	ads->config.bits.NOP = DATA_VALID;
+	return editConfig(ads, prevConfig);
+}
+bool enableAINPN_1_G(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.bits.MUX = AINPN_1_G;
+	ads->config.bits.NOP = DATA_VALID;
+	return editConfig(ads, prevConfig);
+}
+
+bool enableAINPN_2_G(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.bits.MUX = AINPN_2_G;
+	ads->config.bits.NOP = DATA_VALID;
+	return editConfig(ads, prevConfig);
+}
+
+bool enableAINPN_3_G(ADS* ads) {
+	uint16_t prevConfig = ads->config.word;
+	ads->config.bits.MUX = AINPN_3_G;
+	ads->config.bits.NOP = DATA_VALID;
+	return editConfig(ads, prevConfig);
+}
+
 
 float parseVoltage(ADS* ads, uint16_t ads_reading) {
 	return ((ads_reading/32768.0)*(ads->FSR));

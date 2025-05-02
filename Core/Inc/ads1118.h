@@ -6,25 +6,37 @@
 #include "spi.h"
 
 #define CONFIG_BIT_RESV 1
-#define ADS_EN_PORT GPIOA
-#define ADS_EN_PIN GPIO_PIN_4
 
-// The Config Bitfield
-typedef union {
-	struct {
-		volatile unsigned int RESV :1; // Low Bit (0)
-		volatile unsigned int NOP :2;
-		volatile unsigned int PULL_UP_EN :1;
-		volatile unsigned int TS_MODE :1;
-		volatile unsigned int DR :3;
-		volatile unsigned int MODE :1;
-		volatile unsigned int PGA :3;
-		volatile unsigned int MUX :3;
-		volatile unsigned int SS :1; // High Bit (15)
-	} bits;
-	volatile uint16_t word;
-	volatile uint8_t bytes[2];
-} ADS_Config_Bitfield;
+// Simple ADS Struct
+typedef struct ADS {
+	SPI_HandleTypeDef *hspi;
+	float FSR;
+	float voltage;
+	unsigned int SPS;
+	GPIO_TypeDef* GPIO_PORT;
+	uint16_t GPIO_PIN;
+
+	uint8_t rxADS[2];
+	uint8_t rxConfig[4];
+
+	// uint8_t rxADS[2];
+
+	union {
+		uint16_t word;
+		uint8_t bytes[2];
+		struct {
+			volatile unsigned int RESV :1; // Low Bit (0)
+			volatile unsigned int NOP :2;
+			volatile unsigned int PULL_UP_EN :1;
+			volatile unsigned int TS_MODE :1;
+			volatile unsigned int DR :3;
+			volatile unsigned int MODE :1;
+			volatile unsigned int PGA :3;
+			volatile unsigned int MUX :3;
+			volatile unsigned int SS :1; // High Bit (15)
+		} bits;
+	} config;
+} ADS;
 
 // Config Register
 typedef enum SS {
@@ -72,25 +84,25 @@ typedef enum NOP {
 	DATA_VALID = 0b01, DATA_INVALID = 0b10
 } NOP;
 
-// Simple ADS Struct
-typedef struct ADS {
-	SPI_HandleTypeDef *hspi;
-	ADS_Config_Bitfield configReg;
-	float FSR;
-	unsigned int SPS;
-} ADS;
 
-void initADS_SW(ADS* adsInstance, SPI_HandleTypeDef* spiInstance);
-bool initADS_HW(ADS* adsInstance, uint8_t* rxData);
+void initADS_SW(ADS* adsInstance, SPI_HandleTypeDef* spiInstance, GPIO_TypeDef* GPIO_PORT, uint16_t GPIO_PIN);
+bool resetConfig(ADS* ads);
+bool editConfig(ADS* ads, uint16_t prevConfig);
+bool enableSingleshot(ADS* ads);
+bool enableContinuousConversion(ADS* ads);
 
-bool resetConfig(ADS* ads, uint8_t* rxData);
-bool editConfig(ADS* ads, uint8_t* rxData);
-bool enable_AIN0_SE(ADS* adsInstance, uint8_t* rxData);
-bool enableSingleshot(ADS* adsInstance, uint8_t* rxData);
-bool enableContinuousConversion(ADS* adsInstance, uint8_t* rxData);
+bool continuousRead(ADS* ads);
+bool singleshotRead(ADS* ads);
 
-void continuousRead(ADS* adsInstance, uint8_t* rxData, float* voltage);
-bool singleshotRead(ADS* adsInstance, uint8_t* rxData, float* voltage);
+bool enableAINPN_0_1(ADS* ads);
+bool enableAINPN_0_3(ADS* ads);
+bool enableAINPN_1_3(ADS* ads);
+bool enableAINPN_2_3(ADS* ads);
+bool enableAINPN_0_G(ADS* ads);
+bool enableAINPN_1_G(ADS* ads);
+bool enableAINPN_2_G(ADS* ads);
+bool enableAINPN_3_G(ADS* ads);
+
 float parseVoltage(ADS* adsInstance, uint16_t adsReading);
 
 #endif /* SRC_ADS1118_H_ */
