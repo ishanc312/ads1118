@@ -12,8 +12,11 @@ typedef struct ADS {
 	SPI_HandleTypeDef *hspi;
 	float FSR;
 	unsigned int SPS;
+
 	GPIO_TypeDef* GPIO_PORT;
-	uint16_t GPIO_PIN;
+	uint8_t GPIO_PIN;
+	void (*cs_low)(struct ADS*);
+	void (*cs_high)(struct ADS*);
 
 	uint8_t rxADS[2];
 	uint8_t rxConfig[4];
@@ -84,12 +87,18 @@ typedef enum NOP {
 	DATA_VALID = 0b01, DATA_INVALID = 0b10
 } NOP;
 
+void cs_low_stm(struct ADS*);
+void cs_high_stm(struct ADS*);
+void cs_low_pcf(struct ADS*);
+void cs_high_pcf(struct ADS*);
 
-void initADS_SW(ADS* adsInstance, SPI_HandleTypeDef* spiInstance, GPIO_TypeDef* GPIO_PORT, uint16_t GPIO_PIN);
+void initADS(ADS* adsInstance, SPI_HandleTypeDef* spiInstance, GPIO_TypeDef* PORT, uint16_t GPIO_PIN);
 bool resetConfig(ADS* ads);
 bool editConfig(ADS* ads, uint16_t prevConfig);
 bool enableSingleshot(ADS* ads);
 bool enableContinuousConversion(ADS* ads);
+
+bool enableADCSensor(ADS* ads);
 bool enableTempSensor(ADS* ads);
 
 bool continuousRead(ADS* ads);
@@ -104,7 +113,23 @@ bool enableAINPN_1_G(ADS* ads);
 bool enableAINPN_2_G(ADS* ads);
 bool enableAINPN_3_G(ADS* ads);
 
-float parseVoltage(ADS* adsInstance, uint16_t adsReading);
-float parseTemp(uint16_t adsReading);
+bool enableFSR_6144(ADS* ads);
+bool enableFSR_4096(ADS* ads);
+bool enableFSR_2048(ADS* ads);
+bool enableFSR_1024(ADS* ads);
+bool enableFSR_0512(ADS* ads);
+bool enableFSR_0256(ADS* ads);
+
+bool enableSPS_8(ADS* ads);
+bool enableSPS_16(ADS* ads);
+bool enableSPS_32(ADS* ads);
+bool enableSPS_64(ADS* ads);
+bool enableSPS_128(ADS* ads);
+bool enableSPS_250(ADS* ads);
+bool enableSPS_475(ADS* ads);
+bool enableSPS_860(ADS* ads);
+
+float parseVoltage(ADS* adsInstance, int16_t adsReading);
+float parseTemp(int16_t adsReading);
 
 #endif /* SRC_ADS1118_H_ */

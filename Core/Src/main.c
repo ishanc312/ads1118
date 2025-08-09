@@ -93,11 +93,6 @@ int main(void)
 
   /* USER CODE BEGIN 2 */
 
-  initADS_SW(&ADS1118, &hspi1, GPIOA, GPIO_PIN_4);
-  status = resetConfig(&ADS1118);
-  status = enableContinuousConversion(&ADS1118);
-  status = enableTempSensor(&ADS1118);
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -106,8 +101,8 @@ int main(void)
   {
 
     /* USER CODE END WHILE */
-	  status = continuousRead(&ADS1118);
-    /* USER CODE BEGIN 3 */
+
+	  /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
